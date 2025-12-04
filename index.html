@@ -11,7 +11,7 @@
             --bg: #f6f8fb;
             --card: #ffffff;
             --accent: #0b5ed7;
-            --accent-2: #0fb0ea;
+            --accent-2: #000000;
             --muted: #5b6874;
             --text: #0b1720;
             --soft: #f7fbff;
@@ -296,6 +296,27 @@
             color: #7f1d1d;
             border: 1px solid #fecaca
         }
+        /* quiz result styles */
+        
+        .options label.correct {
+            border-color: #2ecc71;
+            background: #ecffef
+        }
+        
+        .options label.wrong {
+            border-color: #ff9b9b;
+            background: #fff6f6
+        }
+        
+        .options label .mark {
+            float: right;
+            font-weight: 700
+        }
+        
+        .btn.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
         
         footer {
             margin-top: 18px;
@@ -328,10 +349,12 @@
             --soft: #071422;
             background: linear-gradient(180deg, #071426 0%, #071826 100%);
         }
-         .dark .task {
+        
+        .dark .task {
             background: #0b1a2a;
             border-left-color: #665f00;
         }
+        
         .dark body {
             background: linear-gradient(180deg, #071426 0%, #071826 100%)
         }
@@ -746,6 +769,86 @@
             q10: 'b'
         };
 
+        // Grade the quiz: returns score, total and number unanswered
+        function gradeQuiz() {
+            let score = 0;
+            const total = Object.keys(answers).length;
+            let unanswered = 0;
+            for (let i = 1; i <= total; i++) {
+                const name = 'q' + i;
+                const checked = document.querySelector('input[name="' + name + '"]:checked');
+                if (!checked) {
+                    unanswered++;
+                } else {
+                    if (checked.value === answers[name]) score++;
+                }
+            }
+            return {
+                score,
+                total,
+                unanswered
+            };
+        }
+
+        // Evaluate and visually mark answers, then disable inputs
+        function evaluateAndShowResults(lang) {
+            const result = gradeQuiz();
+            const el = document.getElementById('quizResult');
+            if (el) {
+                if (lang === 'ru') {
+                    el.textContent = `Результат: ${result.score} / ${result.total}. ${result.unanswered?('Не отвечено вопросов: '+result.unanswered):''}`;
+                } else {
+                    el.textContent = `Нәтиже: ${result.score} / ${result.total}. ${result.unanswered?('Жауап бермеген сұрақтар: '+result.unanswered):''}`;
+                }
+            }
+
+            // For each question, mark correct option and the user's wrong choice (if any)
+            for (let i = 1; i <= result.total; i++) {
+                const name = 'q' + i;
+                const container = document.querySelector('.quiz-question[data-index="' + i + '"]');
+                if (!container) continue;
+
+                // clean previous marks
+                container.querySelectorAll('label').forEach(lbl => {
+                    lbl.classList.remove('correct', 'wrong');
+                    const oldMark = lbl.querySelector('.mark');
+                    if (oldMark) oldMark.remove();
+                });
+
+                const correct = answers[name];
+                container.querySelectorAll('label').forEach(lbl => {
+                    const inp = lbl.querySelector('input');
+                    if (!inp) return;
+                    if (inp.value === correct) {
+                        lbl.classList.add('correct');
+                        const m = document.createElement('span');
+                        m.className = 'mark';
+                        m.textContent = '✓';
+                        lbl.appendChild(m);
+                    }
+                    if (inp.checked && inp.value !== correct) {
+                        lbl.classList.add('wrong');
+                        const m = document.createElement('span');
+                        m.className = 'mark';
+                        m.textContent = '✗';
+                        lbl.appendChild(m);
+                    }
+                });
+
+                // disable all inputs in this question
+                container.querySelectorAll('input').forEach(inp => inp.disabled = true);
+            }
+
+            // disable submit to avoid regrading (user can refresh to try again)
+            const submit = document.getElementById('submitQuiz');
+            if (submit) {
+                submit.disabled = true;
+                submit.classList.add('disabled');
+            }
+
+            return result;
+        }
+
         // Keep original (KK) page HTML so we can restore it on language switch
         const kkPages = {};
         ['page-1', 'page-2', 'page-3', 'page-4', 'page-5'].forEach(id => {
@@ -973,25 +1076,7 @@
 
             const submit = document.getElementById('submitQuiz');
             if (submit) submit.addEventListener('click', function() {
-                const result = gradeQuiz();
-                const el = document.getElementById('quizResult');
-                if (!el) return;
-                if (lang === 'ru') {
-                    el.textContent = `Результат: ${result.score} / ${result.total}. ${result.unanswered?('Не отвечено вопросов: '+result.unanswered):''}`;
-                } else {
-                    el.textContent = `Нәтиже: ${result.score} / ${result.total}. ${result.unanswered?('Жауап бермеген сұрақтар: '+result.unanswered):''}`;
-                }
-                for (let i = 1; i <= 10; i++) {
-                    const name = 'q' + i;
-                    const container = document.querySelector('.quiz-question[data-index="' + i + '"]');
-                    if (!container) continue;
-                    container.querySelectorAll('label').forEach(lbl => lbl.style.borderColor = '');
-                    const correct = answers[name];
-                    container.querySelectorAll('label').forEach(lbl => {
-                        const inp = lbl.querySelector('input');
-                        if (inp && inp.value === correct) lbl.style.borderColor = '#2ecc71';
-                    });
-                }
+                evaluateAndShowResults(lang);
             });
 
             // Autosave textareas
